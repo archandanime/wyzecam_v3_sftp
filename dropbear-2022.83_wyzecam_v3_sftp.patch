@@ -1,0 +1,149 @@
+diff --git a/default_options.h b/default_options.h
+index 5132775..c041b78 100644
+--- a/default_options.h
++++ b/default_options.h
+@@ -13,7 +13,7 @@ Options can also be defined with -DDROPBEAR_XXX=[0,1] in Makefile CFLAGS
+ 
+ IMPORTANT: Some options will require "make clean" after changes */
+ 
+-#define DROPBEAR_DEFPORT "22"
++#define DROPBEAR_DEFPORT "1022"
+ 
+ /* Listen on all interfaces */
+ #define DROPBEAR_DEFADDRESS ""
+@@ -21,10 +21,10 @@ IMPORTANT: Some options will require "make clean" after changes */
+ /* Default hostkey paths - these can be specified on the command line.
+  * Homedir is prepended if path begins with ~/
+  */
+-#define DSS_PRIV_FILENAME "/etc/dropbear/dropbear_dss_host_key"
+-#define RSA_PRIV_FILENAME "/etc/dropbear/dropbear_rsa_host_key"
+-#define ECDSA_PRIV_FILENAME "/etc/dropbear/dropbear_ecdsa_host_key"
+-#define ED25519_PRIV_FILENAME "/etc/dropbear/dropbear_ed25519_host_key"
++#define DSS_PRIV_FILENAME "/configs/dropbear/dropbear_dss_host_key"
++#define RSA_PRIV_FILENAME "/configs/dropbear/dropbear_rsa_host_key"
++#define ECDSA_PRIV_FILENAME "/configs/dropbear/dropbear_ecdsa_host_key"
++#define ED25519_PRIV_FILENAME "/configs/dropbear/dropbear_ed25519_host_key"
+ 
+ /* Set NON_INETD_MODE if you require daemon functionality (ie Dropbear listens
+  * on chosen ports and keeps accepting connections. This is the default.
+@@ -253,7 +253,7 @@ group1 in Dropbear server too */
+ /* A default argument for dbclient -i <privatekey>.
+  * Homedir is prepended if path begins with ~/
+  */
+-#define DROPBEAR_DEFAULT_CLI_AUTHKEY "~/.ssh/id_dropbear"
++#define DROPBEAR_DEFAULT_CLI_AUTHKEY "/configs/dropbear/id_dropbear"
+ 
+ /* Allow specifying the password for dbclient via the DROPBEAR_PASSWORD
+  * environment variable. */
+@@ -298,11 +298,11 @@ group1 in Dropbear server too */
+  * scripts etc. This can be overridden with the -P flag.
+  * Homedir is prepended if path begins with ~/
+  */
+-#define DROPBEAR_PIDFILE "/var/run/dropbear.pid"
++#define DROPBEAR_PIDFILE "/var/run/dropbear_sftp.pid"
+ 
+ /* The command to invoke for xauth when using X11 forwarding.
+  * "-q" for quiet */
+-#define XAUTH_COMMAND "/usr/bin/xauth -q"
++#define XAUTH_COMMAND "/usr/local/bin/xauth -q"
+ 
+ 
+ /* If you want to enable running an sftp server (such as the one included with
+@@ -311,11 +311,11 @@ group1 in Dropbear server too */
+  * Homedir is prepended if path begins with ~/
+  */
+ #define DROPBEAR_SFTPSERVER 1
+-#define SFTPSERVER_PATH "/usr/libexec/sftp-server"
++#define SFTPSERVER_PATH "/usr/local/bin/sftp-server"
+ 
+ /* This is used by the scp binary when used as a client binary. If you're
+  * not using the Dropbear client, you'll need to change it */
+-#define DROPBEAR_PATH_SSH_PROGRAM "/usr/bin/dbclient"
++#define DROPBEAR_PATH_SSH_PROGRAM "/usr/local/bin/dbclient"
+ 
+ /* Whether to log commands executed by a client. This only logs the 
+  * (single) command sent to the server, not what a user did in a 
+@@ -351,7 +351,7 @@ be overridden at runtime with -I. 0 disables idle timeouts */
+ #define DEFAULT_IDLE_TIMEOUT 0
+ 
+ /* The default path. This will often get replaced by the shell */
+-#define DEFAULT_PATH "/usr/bin:/bin"
+-#define DEFAULT_ROOT_PATH "/usr/sbin:/usr/bin:/sbin:/bin"
++#define DEFAULT_PATH "/usr/bin:/bin:/usr/local/bin"
++#define DEFAULT_ROOT_PATH "/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/bin:/opt/bin:/opt/sbin"
+ 
+ #endif /* DROPBEAR_DEFAULT_OPTIONS_H_ */
+diff --git a/svr-authpubkey.c b/svr-authpubkey.c
+index 5d298cb..5bf9054 100644
+--- a/svr-authpubkey.c
++++ b/svr-authpubkey.c
+@@ -464,11 +464,11 @@ static int checkpubkey(const char* keyalgo, unsigned int keyalgolen,
+ 	} else {
+ 		/* we don't need to check pw and pw_dir for validity, since
+ 		 * its been done in checkpubkeyperms. */
+-		len = strlen(ses.authstate.pw_dir);
++
+ 		/* allocate max required pathname storage,
+ 		 * = path + "/.ssh/authorized_keys" + '\0' = pathlen + 22 */
+-		filename = m_malloc(len + 22);
+-		snprintf(filename, len + 22, "%s/.ssh/authorized_keys",
++		filename = m_malloc(34);
++		snprintf(filename, 34, "/configs/dropbear/authorized_keys",
+ 					ses.authstate.pw_dir);
+ 
+ 		authfile = fopen(filename, "r");
+@@ -528,52 +528,8 @@ out:
+  * ~/.ssh/authorized_keys are all owned by either root or the user, and are
+  * g-w, o-w */
+ static int checkpubkeyperms() {
+-
+-	char* filename = NULL;
+-	int ret = DROPBEAR_FAILURE;
+-	unsigned int len;
+-
+-	TRACE(("enter checkpubkeyperms"))
+-
+-	if (ses.authstate.pw_dir == NULL) {
+-		goto out;
+-	}
+-
+-	if ((len = strlen(ses.authstate.pw_dir)) == 0) {
+-		goto out;
+-	}
+-
+-	/* allocate max required pathname storage,
+-	 * = path + "/.ssh/authorized_keys" + '\0' = pathlen + 22 */
+-	len += 22;
+-	filename = m_malloc(len);
+-	strlcpy(filename, ses.authstate.pw_dir, len);
+-
+-	/* check ~ */
+-	if (checkfileperm(filename) != DROPBEAR_SUCCESS) {
+-		goto out;
+-	}
+-
+-	/* check ~/.ssh */
+-	strlcat(filename, "/.ssh", len);
+-	if (checkfileperm(filename) != DROPBEAR_SUCCESS) {
+-		goto out;
+-	}
+-
+-	/* now check ~/.ssh/authorized_keys */
+-	strlcat(filename, "/authorized_keys", len);
+-	if (checkfileperm(filename) != DROPBEAR_SUCCESS) {
+-		goto out;
+-	}
+-
+-	/* file looks ok, return success */
+-	ret = DROPBEAR_SUCCESS;
+-
+-out:
+-	m_free(filename);
+-
+-	TRACE(("leave checkpubkeyperms"))
+-	return ret;
++	TRACE(("skip checkpubkeyperms"))
++	return DROPBEAR_SUCCESS;
+ }
+ 
+ /* Checks that a file is owned by the user or root, and isn't writable by
