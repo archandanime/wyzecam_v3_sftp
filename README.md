@@ -1,6 +1,11 @@
+## Features
+
+- SSH, SFTP and Rsync server without SD card(which guarantees stability)
+- nano editor with shell script syntax highlighting
+- Compatible with wz_mini_hacks
+- Compatible with Entware if wz_mini_hacks is not used, with custom script at `/configs/entware.sh`
+ 
 ## How to install
-
-
 
 1. Setup [wz_flash-helper](https://github.com/archandanime/wz_flash-helper/)
 
