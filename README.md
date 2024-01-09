@@ -41,4 +41,4 @@ matched_firmware="stock"
 
 5. Reboot your camera and wait till the flasher program is finished
 
-If your mobile Wyze app fails to connect to camera livestream, do a factory reset using recovery bin file first.
+It seems that this firmware works well with Anroid app version `2.45.6.361` but not with newer versions, downgrade your mobile app to make it work if neccessary. Doing a factory reset using recovery bin file might make it work too.
